@@ -203,6 +203,24 @@ def save_ico(source_png, out_ico, sizes=(16, 32, 48, 64, 128, 256)):
     im.save(out_ico, format="ICO", sizes=[(s, s) for s in sizes])
     return out_ico
 
+def fit_center_square(path, side=512, pad=0.06):
+    """Fit the artwork in `path` onto a square `side` canvas, centered, with a
+    tasteful margin. Non-square sources (e.g. the portrait stacked logo) get a
+    solid black pad so they can live inside an ICO without distortion."""
+    im = Image.open(path).convert("RGBA")
+    # Composite onto black first so we can measure the artwork's bounding box.
+    canvas = Image.new("RGBA", im.size, (0, 0, 0, 255))
+    canvas.alpha_composite(im)
+    bbox = canvas.getchannel("A").getbbox()
+    if bbox:
+        im = im.crop(bbox)
+    scale = (side * (1 - 2 * pad)) / max(im.size)
+    new = im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))),
+                    Image.LANCZOS)
+    out = Image.new("RGBA", (side, side), (0, 0, 0, 255))
+    out.alpha_composite(new, ((side - new.width) // 2, (side - new.height) // 2))
+    return out
+
 def write_svg(name, svg):
     p = os.path.join(SVGDIR, name)
     with open(p, "w") as f:
@@ -381,6 +399,18 @@ def build_all():
     for s in (16, 32, 48, 64, 128, 256):
         render(favicon_svg(INK, transparent=False),
                os.path.join(PNGDIR, f"ruxx-favicon-{s}.png"), s, s)
+
+    # --- ICO versions of the two requested pieces -----------------------
+    # (1) Primary stacked logo as a square favicon-style ICO
+    fit_center_square(os.path.join(PNGDIR, "ruxx-logo-primary-dark.png"), 512).save(
+        os.path.join(ICODIR, "ruxx-logo-primary-source-512.png"))
+    save_ico(os.path.join(ICODIR, "ruxx-logo-primary-source-512.png"),
+             os.path.join(ICODIR, "ruxx-logo-primary.ico"))
+    # (2) R emblem (mandala monogram) as ICO
+    fit_center_square(os.path.join(PNGDIR, "ruxx-monogram-512.png"), 512).save(
+        os.path.join(ICODIR, "ruxx-emblem-source-512.png"))
+    save_ico(os.path.join(ICODIR, "ruxx-emblem-source-512.png"),
+             os.path.join(ICODIR, "ruxx-emblem.ico"))
 
     print("BUILD COMPLETE")
 
